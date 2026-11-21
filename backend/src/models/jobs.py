@@ -37,6 +37,13 @@ class Run(Base):
     decision: Mapped[str | None] = mapped_column(String(120))
     attempt: Mapped[int] = mapped_column(default=0)
     lease_until: Mapped[datetime | None]
+    # 分批启用排期版本；为空表示原「统一启动日」模式的历史运行。
+    activation_version_id: Mapped[int | None] = mapped_column(ForeignKey('activation_versions.id'))
+    kind: Mapped[str] = mapped_column(String(20), default='unified')
+    # 发布开关：重算成功前旧版保持已发布；失败保留旧版，不覆盖页面与下载。
+    published: Mapped[bool] = mapped_column(default=False, index=True)
+    published_at: Mapped[datetime | None]
+    publish_group: Mapped[str | None] = mapped_column(String(64), index=True)
     author: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(default=now)
     finished_at: Mapped[datetime | None]

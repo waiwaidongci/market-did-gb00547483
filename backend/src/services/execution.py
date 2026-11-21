@@ -4,9 +4,12 @@ from sqlalchemy import and_, or_, select
 from src.config.database import Session
 from src.constants.enums import Status
 from src.domain.analysis import analyze
+from src.domain.rollout import analyze_rollout
 from src.domain.spec import SPEC
 from src.models.jobs import Delivery, Run, Schedule
+from src.models.rollout import ActivationVersion
 from src.models.source import Dataset
+from src.services import rollout as rollout_service
 from src.services.audit import record
 from src.utils.exports import write_report
 from src.utils.time import now
@@ -58,14 +61,18 @@ def claim():
         job.attempt += 1
         job.lease_until = stamp + timedelta(minutes=3)
         records = db.get(Dataset, job.dataset_id).rows
-        return job.id, job.attempt, records, job.params
+        entries = db.get(ActivationVersion, job.activation_version_id).entries if job.activation_version_id else None
+        return job.id, job.attempt, records, job.params, job.activation_version_id, entries
 
 
 def execute(lease):
-    job_id, attempt, rows, params = lease
+    job_id, attempt, rows, params, version_id, schedule_entries = lease
     result = export = failure = None
     try:
-        result = analyze(rows, params)
+        if version_id:
+            result = analyze_rollout(rows, params, schedule_entries)
+        else:
+            result = analyze(rows, params)
         export = write_report(job_id, attempt, result)
     except ValueError as error:
         failure = str(error)[:500]
@@ -83,6 +90,9 @@ def execute(lease):
         job.export_file = export
         job.error = failure
         record(db, 'worker', f'analysis.{job.status}', job.id, attempt=attempt, reason=failure)
+        if not failure:
+            _apply_publish(db, job)
+        # 统一启用日的历史运行照常可查：保留结果与导出，不参与分批发布切换。
         if job.schedule_id:
             plan = db.get(Schedule, job.schedule_id)
             ready = not failure and result.get('ready', True)
@@ -90,3 +100,31 @@ def execute(lease):
             receipt = Delivery(run_id=job.id, recipient=plan.recipient, state='delivered' if ready else 'blocked', detail=detail[:500])
             db.add(receipt)
             record(db, 'worker', f'delivery.{receipt.state}', job.id, recipient=plan.recipient)
+
+
+def _apply_publish(db, job):
+    """发布组内运行全部成功才一次性切换；任一重算失败则保留旧版。"""
+    group = job.publish_group
+    if not group:
+        # 独立运行：成功即作为自身版本的发布结果。
+        job.published = True
+        job.published_at = now()
+        record(db, 'worker', 'analysis.published', job.id, publish_group=group)
+        return
+    siblings = list(db.scalars(select(Run).where(Run.publish_group == group)))
+    pending = [item for item in siblings if item.status in (Status.QUEUED, Status.RUNNING)]
+    if pending:
+        record(db, 'worker', 'publish.waiting', job.id, publish_group=group,
+               pending=len(pending))
+        return
+    # 与本次运行同属一个排期版本的，才是这一代要上线的新运行；其余为历史代。
+    new_generation = [item for item in siblings
+                      if item.activation_version_id == job.activation_version_id]
+    failed = [item for item in new_generation if item.status == Status.FAILED]
+    if failed:
+        record(db, 'worker', 'publish.kept_previous', job.id, publish_group=group,
+               failed_runs=[item.id for item in failed])
+        return
+    switched = rollout_service.switch_published(db, new_generation, group)
+    record(db, 'worker', 'publish.switched' if switched else 'publish.kept_previous',
+           job.id, publish_group=group, switched=switched)

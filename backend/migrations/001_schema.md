@@ -8,3 +8,14 @@
 - `schedules` 保存定时计划和下一到期时间。
 - `deliveries` 保存站内分发回执，每次运行最多一个回执。
 - `audit_events` 记录登录、数据入库、运行、复核和报表分发动作。
+
+## 002 分批启用与排期版本
+
+应用启动仍以 `Base.metadata.create_all` 补建缺失表与新增列，不改动历史数据。
+
+- 新表 `activation_versions`：不可变的启用排期版本，含版本号、市场启用日 JSON、
+  校验和、当前生效标记与上一版本指针；同数据批次内版本号唯一。
+- `runs` 新增列：`activation_version_id`（关联排期版本，空值表示原统一启动日运行）、
+  `kind`（`unified` / `rollout`）、`published`、`published_at`、`publish_group`。
+- 发布语义：同 `publish_group` 的重算运行全部成功后一次性切换 `published`，
+  任一失败保留旧版；统一启动日历史运行不参与切换，照常可查、可下载。

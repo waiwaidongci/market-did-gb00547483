@@ -77,3 +77,11 @@ def normalize_params(params):
     if set(params) - {field['key'] for field in fields}:
         raise ValueError('存在未知运行参数，请重新打开工作面板')
     return {field['key']: cell(field, params.get(field['key'], field['default'])) for field in fields}
+
+
+def normalize_rollout_params(params):
+    """分批测算只有分段天数与试点前阈值；启用日由排期版本提供。"""
+    fields = {field['key']: field for field in SPEC['params'] if field['key'] != 'pilot_date'}
+    if set(params) - set(fields):
+        raise ValueError('分批测算存在未知参数，请重新打开工作面板')
+    return {key: cell(field, params.get(key, field['default'])) for key, field in fields.items()}

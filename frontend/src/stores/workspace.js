@@ -19,4 +19,10 @@ export const workspace = {
   schedule: data => call('/schedules', data),
   disable: id => call(`/schedules/${id}/disable`, {}),
   download: (path, filename) => saveFile(path, session.token, filename),
+  versions: datasetId => call(`/activation-versions?dataset_id=${datasetId}`),
+  submitVersion: data => call('/activation-versions', data),
+  versionImpact: id => call(`/activation-versions/${id}/impact`),
+  startRollout: data => call('/rollout-runs', data),
+  recalculate: id => call('/recalculations', {activation_version_id:id}),
+  published: datasetId => call(`/published?dataset_id=${datasetId}`),
 };

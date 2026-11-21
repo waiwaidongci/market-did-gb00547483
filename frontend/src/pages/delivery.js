@@ -11,8 +11,12 @@ import {runPage} from './run.js';
 export async function deliveryPage(route, refresh) {
   const {spec, runs} = workspace;
   const message = feedback();
+  // 页面与下载跟随发布开关：分批运行只展示已发布版本；统一启用日历史记录照常可下载。
+  const downloadable = runs.filter(row => row.status === 'complete'
+    && (row.kind !== 'rollout' || row.published));
   const artifacts = table([
     {label:'报告', render:row=>link(row.name,`#results/${row.id}`)},
+    {label:'类型', render:row=>row.kind === 'rollout' ? '分批双重差分' : '统一启用日'},
     {label:'复核', render:row=>pill(REVIEW[row.review],row.review)},
     {label:'计算时间', render:row=>date(row.finished_at)},
     {label:'下载', render:row=>{
@@ -21,7 +25,7 @@ export async function deliveryPage(route, refresh) {
         workspace.download(`/runs/${row.id}/export`,`${spec.short_name}-${row.id}.csv`)));
       return download;
     }},
-  ], runs.filter(row=>row.status==='complete'), {caption:'可导出的结果', empty:'完成计算后会生成对应的报告。'});
+  ], downloadable, {caption:'可导出的结果（重算切换成功后旧版自动下线，历史记录仍可在试点结果页查阅）', empty:'完成计算并发布后会生成对应的报告。'});
   const delivery = spec.scheduled ? panel('站内分发回执', table([
     {key:'recipient',label:'收件团队'},
     {label:'回执',render:row=>pill(row.state==='delivered'?'已投递':'已拦截',row.state)},

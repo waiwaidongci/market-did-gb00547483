@@ -31,9 +31,12 @@ export async function results(route, refresh) {
     el('select',{id:'run-picker',onChange:event=>{location.hash=`#results/${event.target.value}`;}},
       (runs.some(item=>item.id===job.id) ? runs : [job,...runs]).map(item=>el('option',{value:item.id,selected:item.id===job.id},item.name))));
   const result = job.result;
+  const publishBadge = job.kind === 'rollout'
+    ? pill(job.published ? '当前发布版本' : '未发布（保留旧版）', job.published ? 'complete' : 'returned')
+    : pill('统一启用日历史记录', 'queued');
   const analysis = result ? el('section',{class:'analysis','data-testid':'analysis-complete'},
     el('div',{class:'result-head'},p(job.name,'eyeline'),h(2,result.headline),p(result.note,'intro-copy'),
-      el('div',{class:'actions'},pill(STATUS[job.status],job.status),download,message)),
+      el('div',{class:'actions'},pill(STATUS[job.status],job.status),publishBadge,download,message)),
     metrics(result.metrics),
     result.charts.map(plot),
     (result.sections || []).map(item=>panel(item.title,p(item.text))),

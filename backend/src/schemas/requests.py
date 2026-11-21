@@ -24,6 +24,31 @@ class ReviewRequest(Request):
     note: str = Field(min_length=1, max_length=500)
     decision: str = Field(default='', max_length=120)
 
+class ScheduleEntry(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+    market_id: str = Field(min_length=1, max=300)
+    activate_date: str = Field(min_length=8, max=10)
+
+
+class VersionRequest(Request):
+    dataset_id: int = Field(gt=0)
+    name: str = Field(min_length=1, max=120)
+    entries: list[ScheduleEntry] = Field(min_length=1)
+    note: str = Field(default='', max_length=500)
+
+
+class RolloutRunRequest(Request):
+    dataset_id: int = Field(gt=0)
+    name: str = Field(min_length=1, max_length=120)
+    activation_version_id: int = Field(gt=0)
+    params: dict = Field(default_factory=dict)
+    publish_group: str = Field(default='', max_length=64)
+
+
+class RecalculateRequest(Request):
+    activation_version_id: int = Field(gt=0)
+
+
 class ScheduleRequest(RunRequest):
     recipient: str = Field(min_length=1, max_length=100)
     first_at: datetime

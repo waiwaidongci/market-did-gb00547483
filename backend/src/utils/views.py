@@ -11,7 +11,12 @@ def run(item, detail=False):
                  'author': item.author, 'review': item.review, 'decision': item.decision,
                  'created_at': iso(item.created_at), 'finished_at': iso(item.finished_at),
                  'scheduled_at': iso(item.scheduled_at), 'schedule_id': item.schedule_id,
-                 'has_export': bool(item.export_file), 'error': item.error}
+                 'has_export': bool(item.export_file), 'error': item.error,
+                 'kind': getattr(item, 'kind', 'unified'),
+                 'activation_version_id': getattr(item, 'activation_version_id', None),
+                 'published': getattr(item, 'published', None),
+                 'published_at': iso(getattr(item, 'published_at', None)),
+                 'publish_group': getattr(item, 'publish_group', None)}
     if detail:
         item_view.update(params=item.params, result=item.result, review_note=item.review_note)
     return item_view
